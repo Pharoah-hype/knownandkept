@@ -1,5 +1,5 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "anthropic/claude-sonnet-4-20250514";
+const MODEL = "anthropic/claude-sonnet-4-5";
 
 interface Message {
   role: "system" | "user" | "assistant";
@@ -48,7 +48,7 @@ export async function chatCompletion(opts: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY ?? process.env.ANTHROPIC_API_KEY}`,
     },
     body: JSON.stringify(body),
   });
