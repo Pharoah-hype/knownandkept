@@ -1,76 +1,138 @@
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+'use client'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 const tabs = [
-  { href: "/home", label: "Home", icon: HomeIcon },
-  { href: "/chat", label: "Chat", icon: ChatIcon },
-  { href: "/community", label: "Community", icon: CommunityIcon },
-  { href: "/prayer", label: "Prayer", icon: PrayerIcon },
-];
+  { label: 'Home', href: '/home', icon: HomeIcon },
+  { label: 'Chat', href: '/chat', icon: ChatIcon },
+  { label: 'Community', href: '/community', icon: CommunityIcon },
+  { label: 'Prayer', href: '/prayer', icon: PrayerIcon },
+  { label: 'Profile', href: '/profile', icon: ProfileIcon },
+]
 
 export default function BottomNav() {
-  const pathname = usePathname();
+  const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-surface-elevated">
-      <div className="flex items-center justify-around max-w-lg mx-auto h-16 px-2">
-        {tabs.map((tab) => {
-          const active = pathname.startsWith(tab.href);
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`flex flex-col items-center justify-center gap-1 w-16 h-full transition-opacity duration-200 ${
-                active ? "opacity-100" : "opacity-40 hover:opacity-60"
-              }`}
+    <nav
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 60,
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        background: 'rgba(22, 22, 20, 0.75)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderTop: '0.5px solid rgba(255,255,255,0.06)',
+        display: 'flex',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        zIndex: 50,
+      }}
+    >
+      {tabs.map((tab) => {
+        const active = pathname.startsWith(tab.href)
+        return (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+              color: active ? '#d4cdbf' : '#4a4843',
+              transition: 'color 150ms ease',
+              textDecoration: 'none',
+            }}
+          >
+            <tab.icon />
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: 'system-ui, sans-serif',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                lineHeight: 1,
+              }}
             >
-              <tab.icon active={active} />
-              <span className="text-[10px] font-sans font-medium tracking-wide">
-                {tab.label}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
+              {tab.label}
+            </span>
+            {active && (
+              <span
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: '50%',
+                  background: '#d4cdbf',
+                  display: 'block',
+                }}
+              />
+            )}
+          </Link>
+        )
+      })}
     </nav>
-  );
+  )
 }
 
-function HomeIcon({ active }: { active: boolean }) {
+function HomeIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      {/* Triangle roof */}
+      <polyline points="2,9 10,2 18,9" />
+      {/* House body rectangle */}
+      <rect x="4" y="9" width="12" height="9" />
+      {/* Door */}
+      <rect x="7.5" y="13" width="5" height="5" />
     </svg>
-  );
+  )
 }
 
-function ChatIcon({ active }: { active: boolean }) {
+function ChatIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      {/* Rounded speech bubble rect */}
+      <rect x="2" y="2" width="16" height="12" rx="3" />
+      {/* Small triangle bottom-left */}
+      <polyline points="4,14 2,18 7,14" />
     </svg>
-  );
+  )
 }
 
-function CommunityIcon({ active }: { active: boolean }) {
+function CommunityIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 00-3-3.87" />
-      <path d="M16 3.13a4 4 0 010 7.75" />
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      {/* Left circle */}
+      <circle cx="7" cy="10" r="5" />
+      {/* Right circle overlapping */}
+      <circle cx="13" cy="10" r="5" />
     </svg>
-  );
+  )
 }
 
-function PrayerIcon({ active }: { active: boolean }) {
+function PrayerIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
-      <path d="M12 6v6l4 2" />
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      {/* Circle */}
+      <circle cx="10" cy="10" r="7" />
+      {/* Vertical bar of cross */}
+      <line x1="10" y1="5" x2="10" y2="15" />
+      {/* Horizontal bar of cross */}
+      <line x1="6" y1="9" x2="14" y2="9" />
     </svg>
-  );
+  )
+}
+
+function ProfileIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      {/* Circle head */}
+      <circle cx="10" cy="7" r="3.5" />
+      {/* Arc shoulders */}
+      <path d="M3,18 C3,13.5 17,13.5 17,18" />
+    </svg>
+  )
 }

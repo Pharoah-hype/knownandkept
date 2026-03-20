@@ -1,85 +1,240 @@
-"use client";
+'use client'
 
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
-import GroupFeed from "@/components/community/GroupFeed";
+import { useState, useEffect, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import TopicSlider from '@/components/community/TopicSlider'
+import QueueScreen from '@/components/community/QueueScreen'
+import LiveRoom from '@/components/community/LiveRoom'
 
-declare function obs(event: string, data?: Record<string, unknown>): void;
+type CommunityState = 'selector' | 'queue' | 'room'
 
-const TOPICS = ["anxiety", "marriage", "grief", "identity", "addiction", "parenting"];
+interface TopicData {
+  topic: string
+  memberCount: number
+}
 
 export default function CommunityPage() {
-  const [hasGroup, setHasGroup] = useState<boolean | null>(null);
-  const [joining, setJoining] = useState(false);
-  const supabase = createClient();
+  const [state, setState] = useState<CommunityState>('selector')
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
+  const [groupId, setGroupId] = useState<string | null>(null)
+  const [memberCount, setMemberCount] = useState(0)
+  const [topics, setTopics] = useState<TopicData[]>([])
+  const [userId, setUserId] = useState<string>('')
+  const [userHandle, setUserHandle] = useState<string>('anonymous')
+
+  const supabase = createClient()
+  const queueChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const queueTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    checkMembership();
-  }, []);
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-  const checkMembership = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+      setUserId(user.id)
 
-    const { data } = await supabase
-      .from("group_members")
-      .select("id")
-      .eq("user_id", user.id)
-      .limit(1);
+      // Fetch handle
+      const { data: profile } = await supabase
+        .from('users')
+        .select('handle')
+        .eq('id', user.id)
+        .single()
+      if (profile?.handle) setUserHandle(profile.handle)
 
-    setHasGroup(data !== null && data.length > 0);
-  };
+      // Fetch group counts
+      const { data: groups } = await supabase
+        .from('groups')
+        .select('topic, member_count')
+        .lt('member_count', 10)
+        .order('member_count', { ascending: false })
 
-  const joinGroup = async (topic: string) => {
-    setJoining(true);
-    try {
-      await fetch("/api/groups/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic }),
-      });
-      if (typeof obs !== "undefined") obs("group_joined", { topic });
-      setHasGroup(true);
-    } finally {
-      setJoining(false);
+      if (groups) {
+        // Build map: topic -> highest member_count
+        const topicMap = new Map<string, number>()
+        for (const g of groups) {
+          const existing = topicMap.get(g.topic) ?? 0
+          if (g.member_count > existing) {
+            topicMap.set(g.topic, g.member_count)
+          }
+        }
+        const topicsArr: TopicData[] = Array.from(topicMap.entries()).map(([topic, count]) => ({
+          topic,
+          memberCount: count,
+        }))
+        setTopics(topicsArr)
+      }
     }
-  };
 
-  if (hasGroup === null) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-4 h-4 rounded-full bg-text-muted/20 animate-pulse" />
-      </div>
-    );
+    init()
+  }, [supabase])
+
+  const handleSelectTopic = async (topic: string) => {
+    setSelectedTopic(topic)
+    setState('queue')
+
+    try {
+      const res = await fetch('/api/groups/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic }),
+      })
+      const data = await res.json()
+      const id = data.groupId ?? data.id ?? data.group_id
+      const count = data.memberCount ?? data.member_count ?? 1
+
+      setGroupId(id)
+      setMemberCount(count)
+
+      if (count >= 2) {
+        setState('room')
+        return
+      }
+
+      // Subscribe to realtime updates on this group
+      const channel = supabase
+        .channel(`group-${id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'groups',
+            filter: `id=eq.${id}`,
+          },
+          (payload) => {
+            const newCount = (payload.new as { member_count: number }).member_count
+            setMemberCount(newCount)
+            if (newCount >= 2) {
+              setState('room')
+              if (queueChannelRef.current) {
+                supabase.removeChannel(queueChannelRef.current)
+                queueChannelRef.current = null
+              }
+              if (queueTimeoutRef.current) {
+                clearTimeout(queueTimeoutRef.current)
+                queueTimeoutRef.current = null
+              }
+            }
+          }
+        )
+        .subscribe()
+
+      queueChannelRef.current = channel
+
+      // 30s fallback: move to room even if still solo
+      queueTimeoutRef.current = setTimeout(() => {
+        setState(prev => {
+          if (prev === 'queue') return 'room'
+          return prev
+        })
+        if (queueChannelRef.current) {
+          supabase.removeChannel(queueChannelRef.current)
+          queueChannelRef.current = null
+        }
+      }, 30000)
+    } catch (err) {
+      console.error('Failed to join group:', err)
+      setState('selector')
+      setSelectedTopic(null)
+    }
   }
 
-  if (!hasGroup) {
-    return (
-      <div className="flex-1 px-6 pt-16">
-        <h1 className="font-serif text-2xl mb-2">Community</h1>
-        <p className="text-text-muted text-sm mb-8">
-          Join an anonymous group of up to 10 people around a shared topic.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          {TOPICS.map((topic) => (
-            <button
-              key={topic}
-              onClick={() => joinGroup(topic)}
-              disabled={joining}
-              className="bg-surface rounded-xl p-5 text-left hover:bg-surface-elevated active:scale-[0.98] transition-transform duration-200 disabled:opacity-30"
-            >
-              <p className="font-serif text-base capitalize">{topic}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
+  const handleLeaveQueue = async () => {
+    // Cleanup realtime
+    if (queueChannelRef.current) {
+      supabase.removeChannel(queueChannelRef.current)
+      queueChannelRef.current = null
+    }
+    if (queueTimeoutRef.current) {
+      clearTimeout(queueTimeoutRef.current)
+      queueTimeoutRef.current = null
+    }
+
+    // Best-effort leave API call
+    try {
+      if (groupId) {
+        await fetch('/api/groups/leave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ group_id: groupId }),
+        })
+      }
+    } catch {
+      // Route may not exist — ignore
+    }
+
+    setState('selector')
+    setSelectedTopic(null)
+    setGroupId(null)
+    setMemberCount(0)
   }
 
+  const handleExitRoom = () => {
+    setState('selector')
+    setGroupId(null)
+    setSelectedTopic(null)
+    setMemberCount(0)
+  }
+
+  if (state === 'room' && selectedTopic && groupId) {
+    return (
+      <LiveRoom
+        topic={selectedTopic}
+        groupId={groupId}
+        memberCount={memberCount}
+        userHandle={userHandle}
+        userId={userId}
+        onExit={handleExitRoom}
+      />
+    )
+  }
+
+  if (state === 'queue' && selectedTopic) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          minHeight: '100dvh',
+          background: '#161614',
+          position: 'relative',
+        }}
+      >
+        <QueueScreen
+          topic={selectedTopic}
+          memberCount={memberCount}
+          onLeave={handleLeaveQueue}
+        />
+      </div>
+    )
+  }
+
+  // selector
   return (
-    <div className="flex-1 px-4 pt-16">
-      <h1 className="font-serif text-2xl mb-6 px-2">Community</h1>
-      <GroupFeed />
+    <div style={{ flex: 1, paddingTop: '60px' }}>
+      <div style={{ paddingLeft: '22px', paddingRight: '22px', marginBottom: '32px' }}>
+        <h1
+          style={{
+            fontSize: '20px',
+            fontFamily: 'Georgia, serif',
+            color: '#e4ddd0',
+            margin: '0 0 8px 0',
+          }}
+        >
+          community
+        </h1>
+        <p
+          style={{
+            fontSize: '13px',
+            fontFamily: 'system-ui, sans-serif',
+            color: '#6b6660',
+            margin: 0,
+          }}
+        >
+          pick what&apos;s on your mind
+        </p>
+      </div>
+
+      <TopicSlider topics={topics} onSelect={handleSelectTopic} />
     </div>
-  );
+  )
 }
