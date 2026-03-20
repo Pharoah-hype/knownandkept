@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { BackgroundGradientAnimation } from "@/components/ui/BackgroundGradientAnimation";
 
 export const metadata: Metadata = {
   title: "Known & Kept",
@@ -31,6 +32,13 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-bg text-text-primary min-h-screen">
+        {/* Animated gradient background — fixed, behind all content */}
+        <BackgroundGradientAnimation
+          containerClassName="fixed inset-0 -z-10"
+          interactive={true}
+        />
+        {/* Light black overlay */}
+        <div className="fixed inset-0 -z-10 bg-black/30 pointer-events-none" />
         {children}
         <script
           dangerouslySetInnerHTML={{
