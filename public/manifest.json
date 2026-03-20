@@ -1,0 +1,15 @@
+{
+  "name": "Known & Kept",
+  "short_name": "Known & Kept",
+  "description": "A private space to be fully known",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#161614",
+  "theme_color": "#161614",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
