@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
-import { getAnthropic } from '@/lib/ai/anthropic'
-import type Anthropic from '@anthropic-ai/sdk'
+import { chatCompletion } from '@/lib/ai/anthropic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,10 +46,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Call Claude to compute intersection model
-    const response = await getAnthropic().messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
+    // Call AI to compute intersection model
+    const response = await chatCompletion({
       system: `You are a relationship psychology expert. Analyze two partner profiles and produce a JSON intersection model. Return ONLY valid JSON with these fields:
 - friction_patterns: array of strings describing likely friction points
 - compounding_wounds: array of strings describing how their wounds may compound
@@ -64,13 +61,10 @@ Be specific and clinical. Reference attachment styles, conflict styles, and core
           content: `Partner A profile:\n${JSON.stringify(profileA, null, 2)}\n\nPartner B profile:\n${JSON.stringify(profileB, null, 2)}`,
         },
       ],
+      maxTokens: 2048,
     })
 
-    const textBlock = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === 'text'
-    )
-
-    const rawText = textBlock?.text || '{}'
+    const rawText = response.text || '{}'
     // Extract JSON from potential markdown code blocks
     const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, rawText]
     const intersectionData = JSON.parse(jsonMatch[1]!.trim())

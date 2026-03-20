@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
-import { getAnthropic } from '@/lib/ai/anthropic'
-import type Anthropic from '@anthropic-ai/sdk'
+import { chatCompletion } from '@/lib/ai/anthropic'
 import { getCouplesPrompt } from '@/lib/ai/couplesPrompt'
 import { detectCrisis, CRISIS_RESPONSE_HIGH } from '@/lib/ai/detectCrisis'
 
@@ -81,23 +80,18 @@ export async function POST(request: NextRequest) {
       sessionCount ?? 0
     )
 
-    const messages: Anthropic.MessageParam[] = [
+    const messages: { role: string; content: string }[] = [
       ...(history || []),
       { role: 'user', content: message },
     ]
 
-    const response = await getAnthropic().messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+    const response = await chatCompletion({
       system: systemPrompt,
       messages,
+      maxTokens: 1024,
     })
 
-    const textBlock = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === 'text'
-    )
-
-    const aiMessage = textBlock?.text || ''
+    const aiMessage = response.text || ''
 
     // Insert into couple_sessions
     await supabaseAdmin.from('couple_sessions').insert({

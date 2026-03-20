@@ -1,31 +1,33 @@
 import { createClient } from '@/lib/supabase/server'
 import { getAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
-import { getAnthropic } from '@/lib/ai/anthropic'
-import type Anthropic from '@anthropic-ai/sdk'
+import { chatCompletion } from '@/lib/ai/anthropic'
 import { getOnboardingPrompt } from '@/lib/ai/individualPrompt'
 import { embedMessage } from '@/lib/ai/embedMessage'
 import { detectCrisis, CRISIS_RESPONSE_HIGH } from '@/lib/ai/detectCrisis'
 
-const writeProfileTool: Anthropic.Tool = {
-  name: 'write_profile',
-  description:
-    'Write the assessed personality and attachment profile for this user after the onboarding conversation is complete.',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      attachment_style: { type: 'string' },
-      conflict_style: { type: 'string' },
-      emotional_triggers: { type: 'array', items: { type: 'string' } },
-      love_language_primary: { type: 'string' },
-      love_language_secondary: { type: 'string' },
-      communication_pattern: { type: 'string' },
-      core_wounds: { type: 'array', items: { type: 'string' } },
-      defense_mechanisms: { type: 'array', items: { type: 'string' } },
-      relationship_goals: { type: 'array', items: { type: 'string' } },
-      summary: { type: 'string' },
+const writeProfileTool = {
+  type: 'function' as const,
+  function: {
+    name: 'write_profile',
+    description:
+      'Write the assessed personality and attachment profile for this user after the onboarding conversation is complete.',
+    parameters: {
+      type: 'object' as const,
+      properties: {
+        attachment_style: { type: 'string' },
+        conflict_style: { type: 'string' },
+        emotional_triggers: { type: 'array', items: { type: 'string' } },
+        love_language_primary: { type: 'string' },
+        love_language_secondary: { type: 'string' },
+        communication_pattern: { type: 'string' },
+        core_wounds: { type: 'array', items: { type: 'string' } },
+        defense_mechanisms: { type: 'array', items: { type: 'string' } },
+        relationship_goals: { type: 'array', items: { type: 'string' } },
+        summary: { type: 'string' },
+      },
+      required: ['attachment_style', 'conflict_style', 'summary'],
     },
-    required: ['attachment_style', 'conflict_style', 'summary'],
   },
 }
 
@@ -65,26 +67,25 @@ export async function POST(request: NextRequest) {
 
     // Build messages array for Claude
     const systemPrompt = getOnboardingPrompt()
-    const messages: Anthropic.MessageParam[] = [
+    const messages: { role: string; content: string }[] = [
       ...(history || []),
       { role: 'user', content: message },
     ]
 
-    const response = await getAnthropic().messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+    const response = await chatCompletion({
       system: systemPrompt,
       messages,
       tools: [writeProfileTool],
+      maxTokens: 1024,
     })
 
     // Check for tool use (profile write)
-    const toolBlock = response.content.find(
-      (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
+    const toolCall = response.toolCalls.find(
+      (tc) => tc.name === 'write_profile'
     )
 
-    if (toolBlock && toolBlock.name === 'write_profile') {
-      const profileData = toolBlock.input as Record<string, unknown>
+    if (toolCall) {
+      const profileData = toolCall.arguments as Record<string, unknown>
 
       await supabaseAdmin
         .from('profiles')
@@ -101,14 +102,9 @@ export async function POST(request: NextRequest) {
       await embedMessage(fullConversation, user.id, 'onboarding')
     }
 
-    // Extract text response
-    const textBlock = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === 'text'
-    )
-
     return NextResponse.json({
-      message: textBlock?.text || '',
-      assessment_complete: !!toolBlock,
+      message: response.text || '',
+      assessment_complete: !!toolCall,
     })
   } catch (error: any) {
     return NextResponse.json(

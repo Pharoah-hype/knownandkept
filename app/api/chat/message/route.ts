@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
-import { getAnthropic } from '@/lib/ai/anthropic'
-import type Anthropic from '@anthropic-ai/sdk'
+import { chatCompletion } from '@/lib/ai/anthropic'
 import { buildUserContext } from '@/lib/ai/buildUserContext'
 import { getOngoingPrompt } from '@/lib/ai/individualPrompt'
 import { embedMessage } from '@/lib/ai/embedMessage'
@@ -46,23 +45,18 @@ export async function POST(request: NextRequest) {
     const { profile, similarHistory } = await buildUserContext(user.id, message)
     const systemPrompt = getOngoingPrompt(profile || {}, similarHistory)
 
-    const messages: Anthropic.MessageParam[] = [
+    const messages: { role: string; content: string }[] = [
       ...(history || []),
       { role: 'user', content: message },
     ]
 
-    const response = await getAnthropic().messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+    const response = await chatCompletion({
       system: systemPrompt,
       messages,
+      maxTokens: 1024,
     })
 
-    const textBlock = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === 'text'
-    )
-
-    const aiMessage = textBlock?.text || ''
+    const aiMessage = response.text || ''
 
     // Embed the exchange pair
     await embedMessage(
